@@ -1,0 +1,32 @@
+name: check-winners
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+    inputs:
+      window_override:
+        description: 'Check a specific windowId (for testing)'
+        required: false
+
+concurrency:
+  group: check-winners
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --no-audit --no-fund
+      - run: node scripts/check-winners.mjs
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          WINDOW_OVERRIDE: ${{ inputs.window_override }}
+      # מונע כיבוי אוטומטי של ה-cron אחרי 60 יום ללא פעילות בריפו
+      - uses: gautamkrishnar/keepalive-workflow@v2

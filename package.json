@@ -1,0 +1,9 @@
+{
+  "name": "wordell-notifier",
+  "private": true,
+  "type": "module",
+  "description": "Push notifications sender for Wordell Haverim (runs on GitHub Actions)",
+  "dependencies": {
+    "firebase-admin": "^13.0.0"
+  }
+}

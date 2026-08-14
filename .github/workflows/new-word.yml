@@ -1,0 +1,29 @@
+name: notify-new-word
+
+on:
+  schedule:
+    # רץ ב-6,7 וגם 18,19 UTC — הסקריפט בודק בעצמו אם השעה בישראל היא 10 או 22 (כיסוי שעון קיץ/חורף)
+    - cron: '0 6,7,18,19 * * *'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Send immediately (skip hour check)'
+        type: boolean
+        default: false
+
+concurrency:
+  group: new-word
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --no-audit --no-fund
+      - run: node scripts/notify-new-word.mjs
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FORCE: ${{ inputs.force == true && '1' || '0' }}
