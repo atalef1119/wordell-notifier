@@ -6,7 +6,8 @@ import { getMessaging } from 'firebase-admin/messaging';
 export const SITE_URL = 'https://wordell-haverim-2026.web.app';
 
 export function initAdmin() {
-    const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    // מנקה BOM/רווחים שעלולים להידבק ל-secret בהעברה
+    const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT.replace(/^﻿/, '').trim());
     initializeApp({ credential: cert(sa) });
     return { db: getFirestore(), messaging: getMessaging() };
 }
