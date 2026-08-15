@@ -1,7 +1,10 @@
 // שולח פוש "מילה חדשה" — רץ ב-cron סביב 10:00 ו-22:00 שעון ישראל
 import { initAdmin, getJerusalemWindow, getAllTokens, sendToTokens, getWeekStartWindowId } from './lib.mjs';
 
-const { windowId, hour } = getJerusalemWindow();
+// WINDOW_OVERRIDE + DRY_RUN מאפשרים לבדוק את זיהוי תחילת-השבוע/אלוף-השבוע מול Firestore אמיתי
+// בלי לשלוח פוש אמיתי לאף אחד (למשל סימולציה של ריצת יום ראשון 10:00)
+const windowId = process.env.WINDOW_OVERRIDE ? parseInt(process.env.WINDOW_OVERRIDE, 10) : getJerusalemWindow().windowId;
+const hour = process.env.WINDOW_OVERRIDE ? 10 : getJerusalemWindow().hour;
 
 // ה-cron רץ גם ב-6,7 וגם ב-18,19 UTC כדי לכסות שעון קיץ/חורף —
 // כאן בודקים את השעה בפועל בישראל ומדלגים אם זו לא שעת החלפת מילה
@@ -32,6 +35,11 @@ if (weekStart === windowId) {
         title = `🏆 ${leader.username} אלוף/ת השבוע!`;
         body = 'מילה חדשה נכנסה לשבוע הבא — בוא תנסה להיות הבא בתור';
     }
+}
+
+if (process.env.DRY_RUN === '1') {
+    console.log(`DRY RUN — would send: "${title}" / "${body}"`);
+    process.exit(0);
 }
 
 const tokens = await getAllTokens(db);

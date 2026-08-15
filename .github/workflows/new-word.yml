@@ -10,6 +10,14 @@ on:
         description: 'Send immediately (skip hour check)'
         type: boolean
         default: false
+      window_override:
+        description: 'Simulate a specific windowId (e.g. a Sunday 10:00 window, for testing the weekly-champion logic)'
+        type: string
+        default: ''
+      dry_run:
+        description: 'Compute the message but do not actually send it'
+        type: boolean
+        default: false
 
 concurrency:
   group: new-word
@@ -27,3 +35,5 @@ jobs:
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           FORCE: ${{ inputs.force == true && '1' || '0' }}
+          WINDOW_OVERRIDE: ${{ inputs.window_override }}
+          DRY_RUN: ${{ inputs.dry_run == true && '1' || '0' }}
