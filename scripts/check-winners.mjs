@@ -9,22 +9,38 @@ const windowId = process.env.WINDOW_OVERRIDE
     ? parseInt(process.env.WINDOW_OVERRIDE, 10)
     : getJerusalemWindow().windowId;
 
-const snap = await db.collection('scores').where('windowId', '==', windowId).get();
-const winners = snap.docs.filter(d => d.data().status === 'WON' && !d.data().notifiedAt);
+// מתריעים רק על הפותר הראשון בכל חלון, לא על כל מי שפותר
+const snap = await db.collection('scores')
+    .where('windowId', '==', windowId)
+    .where('status', '==', 'WON')
+    .get();
 
-if (winners.length === 0) {
-    console.log(`no new winners in window ${windowId}`);
+if (snap.empty) {
+    console.log(`no winners in window ${windowId}`);
     process.exit(0);
 }
 
-const tokens = await getAllTokens(db);
-for (const docSnap of winners) {
-    const s = docSnap.data();
-    console.log(`new winner: ${s.username} (${s.attempts}/6)`);
-    // שולחים לכולם חוץ מהפותר עצמו
-    await sendToTokens(db, messaging, tokens.filter(t => t.uid !== s.uid), {
-        title: `🏆 ${s.username} פתר את המילה!`,
-        body: `ב-${s.attempts}/6 ניסיונות. תוכל יותר טוב?`
-    });
-    await docSnap.ref.update({ notifiedAt: FieldValue.serverTimestamp() });
+const winners = snap.docs.sort(
+    (a, b) => (a.data().timestamp?.toMillis() ?? 0) - (b.data().timestamp?.toMillis() ?? 0)
+);
+const [first, ...rest] = winners;
+
+// מסמנים פותרים מאוחרים יותר כ"טופלו" בלי לשלוח להם התראה, כדי שלא ייבדקו שוב
+await Promise.all(
+    rest.filter(d => !d.data().notifiedAt).map(d => d.ref.update({ notifiedAt: FieldValue.serverTimestamp() }))
+);
+
+if (first.data().notifiedAt) {
+    console.log(`first winner already notified in window ${windowId}`);
+    process.exit(0);
 }
+
+const s = first.data();
+console.log(`first winner: ${s.username} (${s.attempts}/6)`);
+const tokens = await getAllTokens(db);
+// שולחים לכולם חוץ מהפותר עצמו
+await sendToTokens(db, messaging, tokens.filter(t => t.uid !== s.uid), {
+    title: `🏆 ${s.username} פתר ראשון את המילה!`,
+    body: `ב-${s.attempts}/6 ניסיונות. תוכל להיות הבא?`
+});
+await first.ref.update({ notifiedAt: FieldValue.serverTimestamp() });
