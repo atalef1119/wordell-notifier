@@ -31,6 +31,14 @@ export function getJerusalemWindow() {
     return { windowId, hour };
 }
 
+// אותה נוסחה בדיוק קיימת גם ב-public/app.js באתר (ריפו נפרד) — לשמור מסונכרן
+// השבוע מתחיל ביום ראשון 10:00 שעון ישראל; day הוא אינדקס ימים מאז 1.1.1970 (יום חמישי)
+export function getWeekStartWindowId(windowId) {
+    const day = Math.floor(windowId / 2);
+    const offset = ((day % 7) - 3 + 7) % 7; // 0=ראשון..6=שבת
+    return (day - offset) * 2;
+}
+
 export async function getAllTokens(db) {
     const snap = await db.collection('tokens').get();
     return snap.docs.map(d => ({ token: d.id, uid: d.data().uid }));
