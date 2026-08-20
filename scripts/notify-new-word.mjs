@@ -42,5 +42,10 @@ if (process.env.DRY_RUN === '1') {
     process.exit(0);
 }
 
-const tokens = await getAllTokens(db);
+// לא שולחים למי שכבר נכנס וראה את המילה הזו (למשל אם ה-cron התעכב והספיקו לשחק)
+const seenSnap = await db.collection('seen').where('windowId', '==', windowId).get();
+const seenUids = new Set(seenSnap.docs.map(d => d.data().uid));
+
+const tokens = (await getAllTokens(db)).filter(t => !seenUids.has(t.uid));
+if (seenUids.size) console.log(`skipping ${seenUids.size} user(s) who already saw this window`);
 await sendToTokens(db, messaging, tokens, { title, body });
