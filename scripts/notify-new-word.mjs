@@ -29,6 +29,17 @@ if (weekStart === windowId) {
         if (!byUser[s.uid]) byUser[s.uid] = { username: s.username, points: 0 };
         byUser[s.uid].points += Math.max(0, 7 - s.attempts);
     });
+
+    // ניקוד סיבובי בונוס (שלישי/שבת) של אותו שבוע שהסתיים — bonusWindowId הוא ביחידת "יום",
+    // ולכן windowId/2 (ראו computeWeeklyStandings ב-public/app.js של אתר הבונוס)
+    const bonusSnap = await db.collection('bonusScores').where('bonusWindowId', '>=', weekStart / 2 - 7).get();
+    bonusSnap.docs.forEach(d => {
+        const s = d.data();
+        if (s.bonusWindowId >= weekStart / 2) return; // רק השבוע שהסתיים
+        if (!byUser[s.uid]) byUser[s.uid] = { username: s.username, points: 0 };
+        byUser[s.uid].points += s.points;
+    });
+
     const leader = Object.values(byUser).sort((a, b) => b.points - a.points)[0];
     if (leader) {
         console.log(`weekly champion: ${leader.username} (${leader.points} pts)`);
