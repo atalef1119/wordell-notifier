@@ -1,0 +1,25 @@
+name: inspect-live-event
+
+on:
+  workflow_dispatch:
+    inputs:
+      collection:
+        description: 'Firestore collection to inspect'
+        type: string
+        default: 'liveEvent'
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --no-audit --no-fund
+      - run: node scripts/inspect-live-event.mjs
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          EVENT_COLLECTION: ${{ inputs.collection }}
