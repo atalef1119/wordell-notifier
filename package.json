@@ -4,6 +4,7 @@
   "type": "module",
   "description": "Push notifications sender for Wordell Haverim (runs on GitHub Actions)",
   "dependencies": {
-    "firebase-admin": "^13.0.0"
+    "firebase-admin": "^13.0.0",
+    "firebase": "^11.6.1"
   }
 }
