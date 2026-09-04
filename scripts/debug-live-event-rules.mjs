@@ -36,13 +36,13 @@ const clientDb = getFirestore(app);
 await signInWithCustomToken(clientAuth, customToken);
 console.log('signed in as:', clientAuth.currentUser.uid, '== testUid?', clientAuth.currentUser.uid === testUid);
 
-// מדמה בדיוק את saveEventProgress(): merge עם אותם שדות
+// מדמה בדיוק את saveEventProgress() אחרי התיקון: מחרוזות מחוברות, לא arrays מקוננים
 const data = {
     uid: testUid,
     username: existing.username,
     status: 'PLAYING',
     currentAttempt: 1,
-    attemptColors: [['absent', 'present', 'correct', 'absent', 'absent']],
+    attemptColors: ['absent,present,correct,absent,absent'],
 };
 
 try {
