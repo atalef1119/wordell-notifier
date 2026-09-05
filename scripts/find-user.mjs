@@ -1,6 +1,13 @@
-// כלי אבחון חד-פעמי: מוצא משתמש לפי כינוי (nickname) ומדווח על המייל שלו ואם יש לו טוקן פוש רשום
+// כלי אבחון חד-פעמי: מוצא משתמש לפי כינוי (nickname) ומדווח אם יש לו טוקן פוש רשום.
+// הריפו ציבורי — לוגים של GitHub Actions run גלויים לכל אחד באינטרנט לצמיתות, גם בלי
+// הרשאת גישה לריפו. לכן לעולם לא מדפיסים כאן מייל מלא, רק גרסה ממוסכת חלקית.
 import { initAdmin } from './lib.mjs';
 import { getAuth } from 'firebase-admin/auth';
+
+function maskEmail(email) {
+    const m = /^(.{2}).*(@.*)$/.exec(email);
+    return m ? `${m[1]}***${m[2]}` : '***';
+}
 
 const { db } = initAdmin();
 const nameQuery = (process.env.USER_QUERY || '').trim().toLowerCase();
@@ -26,13 +33,13 @@ for (const doc of matches) {
     let email = '(unknown)';
     try {
         const userRecord = await getAuth().getUser(uid);
-        email = userRecord.email || '(no email on account)';
+        email = userRecord.email ? maskEmail(userRecord.email) : '(no email on account)';
     } catch (e) {
         email = `(error fetching auth user: ${e.message})`;
     }
     console.log(JSON.stringify({
         nickname,
-        email,
+        emailMasked: email,
         notificationsEnabled: uidsWithToken.has(uid),
     }));
 }
