@@ -1,0 +1,24 @@
+name: check-window-scores
+
+on:
+  workflow_dispatch:
+    inputs:
+      window_id:
+        description: 'windowId to check'
+        required: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --no-audit --no-fund
+      - run: node scripts/check-window-scores.mjs
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          WINDOW_ID: ${{ inputs.window_id }}
