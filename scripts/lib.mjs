@@ -39,6 +39,58 @@ export function getWeekStartWindowId(windowId) {
     return (day - offset) * 2;
 }
 
+// סדר הדירוג השבועי — אותו חוק בדיוק כמו computeWeeklyStandings ב-public/app.js (ריפו נפרד, לשמור מסונכרן):
+// 1) יותר נקודות  2) יותר ניצחונות  3) יותר ניצחונות בניסיון 1, ואם שווה — בניסיון 2, וכך הלאה עד 6
+// 4) (כמעט בלתי אפשרי להגיע לכאן) uid — רק כדי שהתוצאה תהיה דטרמיניסטית ואותה תוצאה בכל מקום
+export function compareStandings(a, b) {
+    if (b.points !== a.points) return b.points - a.points;
+    if (b.wins !== a.wins) return b.wins - a.wins;
+    for (let n = 1; n <= 6; n++) {
+        if (b.attemptCounts[n] !== a.attemptCounts[n]) return b.attemptCounts[n] - a.attemptCounts[n];
+    }
+    return a.uid < b.uid ? -1 : a.uid > b.uid ? 1 : 0;
+}
+
+// דירוג השבוע שהסתיים ממש לפני weekStart (הטווח [weekStart-14, weekStart)).
+// ניצחונות וספירת-ניסיונות נלקחים רק מהמשחקים היומיים; סיבוב בונוס תורם נקודות בלבד (כמו באתר)
+export async function computeWeekStandings(db, weekStart) {
+    const byUser = {};
+    const ensure = (s) => {
+        if (!byUser[s.uid]) {
+            byUser[s.uid] = { uid: s.uid, username: s.username, points: 0, wins: 0, attemptCounts: [0, 0, 0, 0, 0, 0, 0], lastTs: 0 };
+        }
+        return byUser[s.uid];
+    };
+    const touchName = (u, s) => {
+        const ts = s.timestamp ? s.timestamp.seconds : 0;
+        if (ts >= u.lastTs) { u.lastTs = ts; u.username = s.username; }
+    };
+
+    const snap = await db.collection('scores')
+        .where('windowId', '>=', weekStart - 14).where('windowId', '<', weekStart).get();
+    snap.docs.forEach(d => {
+        const s = d.data();
+        const u = ensure(s);
+        touchName(u, s);
+        if (s.status !== 'WON') return;
+        u.wins++;
+        u.attemptCounts[s.attempts]++;
+        u.points += Math.max(0, 7 - s.attempts);
+    });
+
+    // bonusWindowId הוא ביחידת "יום", ולכן weekStart/2
+    const bonusSnap = await db.collection('bonusScores')
+        .where('bonusWindowId', '>=', weekStart / 2 - 7).where('bonusWindowId', '<', weekStart / 2).get();
+    bonusSnap.docs.forEach(d => {
+        const s = d.data();
+        const u = ensure(s);
+        touchName(u, s);
+        u.points += s.points;
+    });
+
+    return Object.values(byUser).sort(compareStandings);
+}
+
 export async function getAllTokens(db) {
     const snap = await db.collection('tokens').get();
     return snap.docs.map(d => ({ token: d.id, uid: d.data().uid }));
