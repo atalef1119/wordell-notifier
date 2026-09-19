@@ -35,13 +35,14 @@ let body = 'מילה חדשה נכנסה! בוא תנחש לפני כולם';
 
 // זו ריצת 10:00 של יום ראשון = תחילת שבוע חדש — מכריזים על אלוף/ת השבוע שהסתיים
 const weekStart = getWeekStartWindowId(windowId);
+let weeklyLeader = null;
 if (weekStart === windowId) {
     const snap = await db.collection('scores').where('windowId', '>=', weekStart - 14).get();
     const byUser = {};
     snap.docs.forEach(d => {
         const s = d.data();
         if (s.windowId >= weekStart || s.status !== 'WON') return; // רק השבוע שהסתיים, רק ניצחונות
-        if (!byUser[s.uid]) byUser[s.uid] = { username: s.username, points: 0 };
+        if (!byUser[s.uid]) byUser[s.uid] = { uid: s.uid, username: s.username, points: 0 };
         byUser[s.uid].points += Math.max(0, 7 - s.attempts);
     });
 
@@ -51,14 +52,14 @@ if (weekStart === windowId) {
     bonusSnap.docs.forEach(d => {
         const s = d.data();
         if (s.bonusWindowId >= weekStart / 2) return; // רק השבוע שהסתיים
-        if (!byUser[s.uid]) byUser[s.uid] = { username: s.username, points: 0 };
+        if (!byUser[s.uid]) byUser[s.uid] = { uid: s.uid, username: s.username, points: 0 };
         byUser[s.uid].points += s.points;
     });
 
-    const leader = Object.values(byUser).sort((a, b) => b.points - a.points)[0];
-    if (leader) {
-        console.log(`weekly champion: ${leader.username} (${leader.points} pts)`);
-        title = `🏆 ${leader.username} אלוף/ת השבוע!`;
+    weeklyLeader = Object.values(byUser).sort((a, b) => b.points - a.points)[0] || null;
+    if (weeklyLeader) {
+        console.log(`weekly champion: ${weeklyLeader.username} (${weeklyLeader.points} pts)`);
+        title = `🏆 ${weeklyLeader.username} אלוף/ת השבוע!`;
         body = 'מילה חדשה נכנסה לשבוע הבא — בוא תנסה להיות הבא בתור';
     }
 }
@@ -79,4 +80,12 @@ await sendToTokens(db, messaging, tokens, { title, body });
 
 if (isRealRun) {
     await notifiedRef.set({ windowId, notifiedAt: new Date() });
+    // נשמר רק בריצה אמיתית של שבוע חדש עם אלוף — מזין את היסטוריית "אלוף השבוע" לצורך
+    // הצגת "כמה פעמים"/"כמה שבועות ברצף" באתר (public/app.js -> weeklyChampions)
+    if (weekStart === windowId && weeklyLeader) {
+        await db.collection('weeklyChampions').doc(String(weekStart)).set({
+            uid: weeklyLeader.uid, username: weeklyLeader.username, points: weeklyLeader.points, decidedAt: new Date()
+        });
+        console.log(`recorded weeklyChampions/${weekStart}`);
+    }
 }
