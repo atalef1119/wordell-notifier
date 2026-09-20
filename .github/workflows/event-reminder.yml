@@ -1,11 +1,33 @@
 name: event-reminder
 
+# תזכורת פוש שעה לפני האירוע הגדול. ה-cron של GitHub יכול להתעכב שעות, ולכן יש כמה ריצות מוקדם בבוקר
+# ביום האירוע; כל אחת ממתינה בתוך הג'וב עד הרגע המדויק ושולחת, ורק הראשונה שמצליחה לסמן שלחה
+# (ר' scripts/notify-event-reminder.mjs). לאירוע הבא: לעדכן EVENT_START_ISO, הטקסט, ואת התאריך בשורות ה-cron
+# (דקה שעה יום חודש, ב-UTC; ריצה מוקדמת ממש הולכת לישון עד 5.5 שעות, ואם עוד לא הגיע הזמן היא מוותרת)
 on:
-  workflow_dispatch: {}
+  schedule:
+    - cron: '47 2 21 9 *'
+    - cron: '17 4 21 9 *'
+    - cron: '47 5 21 9 *'
+    - cron: '17 6 21 9 *'
+    - cron: '47 6 21 9 *'
+    - cron: '17 7 21 9 *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'scheduled = wait until planned time and send | dry = print the plan only | test = push only to one user | now = send to everyone immediately'
+        type: choice
+        options: [scheduled, dry, test, now]
+        default: dry
+      test_nickname:
+        description: 'For mode=test: the nickname whose devices receive the test push'
+        type: string
+        default: ''
 
 jobs:
-  notify:
+  remind:
     runs-on: ubuntu-latest
+    timeout-minutes: 350
     permissions:
       contents: read
     steps:
@@ -17,3 +39,9 @@ jobs:
       - run: node scripts/notify-event-reminder.mjs
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          MODE: ${{ inputs.mode || 'scheduled' }}
+          TEST_NICKNAME: ${{ inputs.test_nickname }}
+          EVENT_START_ISO: '2026-09-21T09:00:00Z'
+          LEAD_MINUTES: '60'
+          REMINDER_TITLE: '🕯️ האירוע הגדול היום ב-12:00!'
+          REMINDER_BODY: 'צום קל וגמר חתימה טובה 🤍 חדר ההמתנה נפתח ב-11:55 — כולם משחקים יחד באותה מילה.'
