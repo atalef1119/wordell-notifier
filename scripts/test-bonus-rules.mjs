@@ -2,9 +2,6 @@
 // client SDK (שמפעיל את חוקי האבטחה, בניגוד ל-Admin) וממציאים כתיבות תקינות ולא תקינות.
 // המסמכים נכתבים ל-bonusWindowId ישנים מאוד (1..5) כדי לא להשפיע על שום טבלה, ונמחקים בסוף.
 import { initAdmin } from './lib.mjs';
-import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithCustomToken } from 'firebase/auth';
-import { getFirestore, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { getAuth as getAdminAuth } from 'firebase-admin/auth';
 
 // מפתח ה-API מוגבל לדומיין האתר (הקשחת אבטחה) ולכן דורש Referer — דפדפן אמיתי שולח אותו לבד,
@@ -15,6 +12,11 @@ globalThis.fetch = (url, init = {}) => {
     headers.set('Referer', 'https://wordell-haverim-2026.web.app/');
     return origFetch(url, { ...init, headers });
 };
+
+// ייבוא דינמי אחרי ה-patch: ייבוא סטטי נטען לפני שורות הקוד ה'רגילות' וה-SDK היה תופס את ה-fetch המקורי
+const { initializeApp } = await import('firebase/app');
+const { getAuth, signInWithCustomToken } = await import('firebase/auth');
+const { getFirestore, doc, setDoc, serverTimestamp } = await import('firebase/firestore');
 
 const { db: adminDb } = initAdmin();
 const testUid = 'rules-test-bonus-user';
