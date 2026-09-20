@@ -7,6 +7,8 @@
 import { initAdmin, getAllTokens, sendToTokens } from './lib.mjs';
 
 const MODE = process.env.MODE || 'scheduled';
+// TEST_NICKNAME מגביל את הנמענים למכשירים של משתמש אחד (גם בריצה המתוזמנת המלאה) ומסמן את ההודעה כבדיקה
+const TEST_NICKNAME = process.env.TEST_NICKNAME || '';
 const startMs = Date.parse(process.env.EVENT_START_ISO);
 if (!Number.isFinite(startMs)) {
     console.log('missing/invalid EVENT_START_ISO');
@@ -30,17 +32,21 @@ if (MODE === 'dry') {
 }
 
 const { db, messaging } = initAdmin();
-let tokens;
+async function pickTokens() {
+    const all = await getAllTokens(db);
+    if (!TEST_NICKNAME) return all;
+    // לא מדפיסים שום פרט מזהה מלבד ספירות
+    const profiles = await db.collection('profiles').where('nickname', '==', TEST_NICKNAME).get();
+    const uids = new Set(profiles.docs.map(d => d.id));
+    return all.filter(t => uids.has(t.uid));
+}
+const messageTitle = TEST_NICKNAME ? `בדיקה — ${title}` : title;
 
 if (MODE === 'test') {
-    // שולח רק למכשירים של משתמש אחד (הבדיקה של הבעלים) — לא מדפיס שום פרט מזהה מלבד ספירות
-    const nickname = process.env.TEST_NICKNAME;
-    if (!nickname) { console.log('test mode needs TEST_NICKNAME'); process.exit(1); }
-    const profiles = await db.collection('profiles').where('nickname', '==', nickname).get();
-    const uids = new Set(profiles.docs.map(d => d.id));
-    tokens = (await getAllTokens(db)).filter(t => uids.has(t.uid));
-    console.log(`test push to ${tokens.length} device(s)`);
-    await sendToTokens(db, messaging, tokens, { title: `בדיקה — ${title}`, body });
+    if (!TEST_NICKNAME) { console.log('test mode needs TEST_NICKNAME'); process.exit(1); }
+    const testTokens = await pickTokens();
+    console.log(`test push to ${testTokens.length} device(s)`);
+    await sendToTokens(db, messaging, testTokens, { title: messageTitle, body });
     process.exit(0);
 }
 
@@ -60,7 +66,7 @@ if (MODE === 'scheduled') {
 
     // סימון אטומי: create() נכשל אם המסמך כבר קיים — כך שרק ריצה אחת שולחת, גם אם כמה ממתינות במקביל
     try {
-        await db.collection('notified').doc(`event-reminder-${startMs}`).create({ sentAt: new Date(), startMs });
+        await db.collection('notified').doc(`event-reminder${TEST_NICKNAME ? '-test' : ''}-${startMs}`).create({ sentAt: new Date(), startMs });
     } catch (e) {
         if (e.code === 6 || /ALREADY_EXISTS/.test(String(e.message))) {
             console.log('another run already sent this reminder — nothing to do');
@@ -70,6 +76,6 @@ if (MODE === 'scheduled') {
     }
 }
 
-tokens = await getAllTokens(db);
+const tokens = await pickTokens();
 console.log(`sending to ${tokens.length} device(s)`);
-await sendToTokens(db, messaging, tokens, { title, body });
+await sendToTokens(db, messaging, tokens, { title: messageTitle, body });
