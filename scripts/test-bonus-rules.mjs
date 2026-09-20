@@ -7,6 +7,15 @@ import { getAuth, signInWithCustomToken } from 'firebase/auth';
 import { getFirestore, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { getAuth as getAdminAuth } from 'firebase-admin/auth';
 
+// מפתח ה-API מוגבל לדומיין האתר (הקשחת אבטחה) ולכן דורש Referer — דפדפן אמיתי שולח אותו לבד,
+// כאן מוסיפים אותו ידנית לכל קריאת fetch כדי לדמות דפדפן
+const origFetch = globalThis.fetch;
+globalThis.fetch = (url, init = {}) => {
+    const headers = new Headers(init.headers || {});
+    headers.set('Referer', 'https://wordell-haverim-2026.web.app/');
+    return origFetch(url, { ...init, headers });
+};
+
 const { db: adminDb } = initAdmin();
 const testUid = 'rules-test-bonus-user';
 const customToken = await getAdminAuth().createCustomToken(testUid);
