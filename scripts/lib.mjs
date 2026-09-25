@@ -72,7 +72,8 @@ export async function computeWeekStandings(db, weekStart) {
         const s = d.data();
         const u = ensure(s);
         touchName(u, s);
-        if (s.status !== 'WON') return;
+        // הפסד במילה היומית = מינוס 2 מהשבוע שמתחיל ב-27/09/2026 (windowId 41446) — זהה ל-dailyGamePoints ב-app.js
+        if (s.status !== 'WON') { if (s.windowId >= 41446) u.points -= 2; return; }
         u.wins++;
         u.attemptCounts[s.attempts]++;
         u.points += Math.max(0, 7 - s.attempts);
