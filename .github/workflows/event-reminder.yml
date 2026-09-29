@@ -6,13 +6,13 @@ name: event-reminder
 # (דקה שעה יום חודש, ב-UTC; ריצה מוקדמת ממש הולכת לישון עד 5.5 שעות, ואם עוד לא הגיע הזמן היא מוותרת)
 on:
   schedule:
-    - cron: '47 12 25 9 *'
-    - cron: '17 13 25 9 *'
-    - cron: '47 13 25 9 *'
-    - cron: '17 14 25 9 *'
-    - cron: '47 14 25 9 *'
-    - cron: '17 15 25 9 *'
-    - cron: '47 15 25 9 *'
+    - cron: '47 12 2 10 *'
+    - cron: '17 13 2 10 *'
+    - cron: '47 13 2 10 *'
+    - cron: '17 14 2 10 *'
+    - cron: '47 14 2 10 *'
+    - cron: '17 15 2 10 *'
+    - cron: '47 15 2 10 *'
   workflow_dispatch:
     inputs:
       mode:
@@ -50,7 +50,7 @@ jobs:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           MODE: ${{ inputs.mode || 'scheduled' }}
           TEST_NICKNAME: ${{ inputs.test_nickname }}
-          EVENT_START_ISO: ${{ inputs.event_start_iso || '2026-09-25T18:00:00Z' }}
+          EVENT_START_ISO: ${{ inputs.event_start_iso || '2026-10-02T18:00:00Z' }}
           LEAD_MINUTES: ${{ inputs.lead_minutes || '60' }}
-          REMINDER_TITLE: '🍋🌴🌿🛖 האירוע הגדול של סוכות הערב ב-21:00!'
-          REMINDER_BODY: 'חג סוכות שמח! אתרוג, לולב, הדס וערבה 🍋🌴🌿 חדר ההמתנה נפתח ב-20:55 — כולם משחקים יחד באותה מילה.'
+          REMINDER_TITLE: '📜🍎🚩 האירוע הגדול של שמחת תורה הערב ב-21:00!'
+          REMINDER_BODY: 'חג שמח ושמחת תורה! 💙 מסיימים את התורה ומתחילים מבראשית. חדר ההמתנה נפתח ב-20:55 — כולם משחקים יחד באותה מילה.'
