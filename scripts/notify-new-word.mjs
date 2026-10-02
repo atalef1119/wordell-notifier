@@ -1,5 +1,5 @@
 // שולח פוש "מילה חדשה" — רץ ב-cron תדיר (ר' new-word.yml), ומקבל את עצמו בטווח רחב
-// סביב 10:00/22:00 כי גילינו בפועל שריצות ה-cron של GitHub Actions יכולות להתעכב שעות
+// סביב 10:00/21:00 כי גילינו בפועל שריצות ה-cron של GitHub Actions יכולות להתעכב שעות
 // שלמות (לא רק כמה דקות) — בדיקת "בדיוק 10 או 22" גרמה לכל הריצות לדלג בשקט
 import { initAdmin, getJerusalemWindow, getAllTokens, sendToTokens, getWeekStartWindowId, computeWeekStandings } from './lib.mjs';
 
@@ -9,10 +9,10 @@ const isRealRun = !process.env.WINDOW_OVERRIDE;
 const windowId = process.env.WINDOW_OVERRIDE ? parseInt(process.env.WINDOW_OVERRIDE, 10) : getJerusalemWindow().windowId;
 const hour = process.env.WINDOW_OVERRIDE ? 10 : getJerusalemWindow().hour;
 
-// טווח קבלה מורחב: חלון הבוקר (10:00) מתקבל עד 20:00, חלון הערב (22:00) עד 01:00 —
+// טווח קבלה מורחב: חלון הבוקר (10:00) מתקבל עד 20:00, חלון הערב (21:00) עד 01:00 —
 // windowId זוגי = חלון בוקר, אי-זוגי = חלון ערב (ר' getJerusalemWindow ב-lib.mjs)
 const isMorningWindow = windowId % 2 === 0;
-const inAcceptableRange = isMorningWindow ? (hour >= 10 && hour < 20) : (hour >= 22 || hour < 1);
+const inAcceptableRange = isMorningWindow ? (hour >= 10 && hour < 20) : (hour >= 21 || hour < 1);
 if (process.env.FORCE !== '1' && !inAcceptableRange) {
     console.log(`Jerusalem hour is ${hour}, outside the acceptable window for windowId ${windowId} — skipping`);
     process.exit(0);

@@ -12,7 +12,7 @@ export function initAdmin() {
     return { db: getFirestore(), messaging: getMessaging() };
 }
 
-// אותו חישוב חלון-זמן כמו באתר: מילה חדשה ב-10:00 וב-22:00 שעון ישראל
+// אותו חישוב חלון-זמן כמו באתר: מילה חדשה ב-10:00 וב-21:00 שעון ישראל (עד 02/10/2026 היה 22:00)
 export function getJerusalemWindow() {
     const fmt = new Intl.DateTimeFormat('en-GB', {
         timeZone: 'Asia/Jerusalem', hourCycle: 'h23',
@@ -23,10 +23,10 @@ export function getJerusalemWindow() {
     const day = Math.floor(Date.UTC(+parts.year, +parts.month - 1, +parts.day) / 86400000);
     const hour = +parts.hour % 24;
     const daySeconds = hour * 3600 + (+parts.minute) * 60 + (+parts.second);
-    const H10 = 36000, H22 = 79200;
+    const H10 = 36000, H21 = 75600;
     let windowId;
-    if (daySeconds >= H10 && daySeconds < H22) windowId = day * 2;
-    else if (daySeconds >= H22) windowId = day * 2 + 1;
+    if (daySeconds >= H10 && daySeconds < H21) windowId = day * 2;
+    else if (daySeconds >= H21) windowId = day * 2 + 1;
     else windowId = (day - 1) * 2 + 1;
     return { windowId, hour };
 }
