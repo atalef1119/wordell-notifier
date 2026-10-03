@@ -42,8 +42,14 @@ if (weekStart === windowId) {
     weeklyLeader = standings[0] && standings[0].points > 0 ? standings[0] : null;
     if (weeklyLeader) {
         console.log(`weekly champion: ${weeklyLeader.username} (${weeklyLeader.points} pts)`);
-        title = `🏆 ${weeklyLeader.username} אלוף/ת השבוע!`;
-        body = 'מילה חדשה נכנסה לשבוע הבא — בוא תנסה להיות הבא בתור';
+        // אם האלוף כבר הוכרע באמצע השבוע (check-winners.mjs) — הפוש על כך כבר יצא (או נדחה בכוונה), לא חוזרים עליו
+        const earlyMarker = await db.collection('notified').doc(`champion-${weekStart - 14}`).get();
+        if (earlyMarker.exists) {
+            console.log('champion was already decided early — keeping the regular new-word push');
+        } else {
+            title = `🏆 ${weeklyLeader.username} אלוף/ת השבוע!`;
+            body = 'מילה חדשה נכנסה לשבוע הבא — בוא תנסה להיות הבא בתור';
+        }
     }
 }
 

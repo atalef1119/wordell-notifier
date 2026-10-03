@@ -28,7 +28,7 @@ export function getJerusalemWindow() {
     if (daySeconds >= H10 && daySeconds < H21) windowId = day * 2;
     else if (daySeconds >= H21) windowId = day * 2 + 1;
     else windowId = (day - 1) * 2 + 1;
-    return { windowId, hour };
+    return { windowId, hour, day, daySeconds };
 }
 
 // אותה נוסחה בדיוק קיימת גם ב-public/app.js באתר (ריפו נפרד) — לשמור מסונכרן

@@ -1,6 +1,7 @@
 // בודק אם יש פותרים חדשים במילה הנוכחית ושולח פוש לכל השאר
 import { FieldValue } from 'firebase-admin/firestore';
-import { initAdmin, getJerusalemWindow, getAllTokens, sendToTokens } from './lib.mjs';
+import { initAdmin, getJerusalemWindow, getAllTokens, sendToTokens, getWeekStartWindowId } from './lib.mjs';
+import { currentWeekDetail, clinchStatus } from './champion.mjs';
 
 const { db, messaging } = initAdmin();
 
@@ -8,6 +9,43 @@ const { db, messaging } = initAdmin();
 const windowId = process.env.WINDOW_OVERRIDE
     ? parseInt(process.env.WINDOW_OVERRIDE, 10)
     : getJerusalemWindow().windowId;
+
+// ── הכרעה מוקדמת של אלוף השבוע: פוש ברגע ההכרעה, רק למי שלא ראה את הכרזת האלוף באתר (championSeen) ──
+// רצה לפני כל היציאות המוקדמות. סימון notified/champion-<weekStart> נוצר אטומית (create) — פוש אחד לשבוע, ושבוע שסומן "מדולג" לא יקבל פוש.
+async function checkChampion() {
+    const { windowId: nowWindow, day, daySeconds } = getJerusalemWindow();
+    const weekStart = getWeekStartWindowId(process.env.WINDOW_OVERRIDE ? windowId : nowWindow);
+    if (nowWindow < weekStart + 8) return; // הכרעה אפשרית רק בימים האחרונים של השבוע; חוסך קריאות
+    const marker = db.collection('notified').doc(`champion-${weekStart}`);
+    if ((await marker.get()).exists) return;
+    // מדלגים על חישוב מלא אם לא נוסף שום משחק/בונוס מאז הבדיקה הקודמת (ספירה זולה)
+    const stateRef = db.collection('notified').doc(`champion-state-${weekStart}`);
+    const [sc, bc] = await Promise.all([
+        db.collection('scores').where('windowId', '>=', weekStart).where('windowId', '<', weekStart + 14).count().get(),
+        db.collection('bonusScores').where('bonusWindowId', '>=', weekStart / 2).where('bonusWindowId', '<', weekStart / 2 + 7).count().get(),
+    ]);
+    const sig = `${sc.data().count}/${bc.data().count}/${nowWindow}/${daySeconds >= 23 * 3600}`;
+    const prev = await stateRef.get();
+    if (prev.exists && prev.data().sig === sig) return;
+    const detail = await currentWeekDetail(db, weekStart);
+    const st = clinchStatus(detail, weekStart, nowWindow, day, daySeconds);
+    await stateRef.set({ sig, at: new Date() });
+    if (!st.decided) { console.log('champion not decided yet'); return; }
+    const champ = st.champion;
+    console.log(`champion decided early: ${champ.name} (${champ.points} pts)`);
+    if (process.env.DRY_RUN === '1') { console.log('DRY RUN — no marker, no push'); return; }
+    try {
+        await marker.create({ pushed: true, uid: champ.uid, username: champ.name, points: champ.points, at: new Date() });
+    } catch (e) { console.log('marker already exists — someone else handled it'); return; }
+    const seen = new Set((await db.collection('championSeen').where('weekStart', '==', weekStart).get()).docs.map(d => d.data().uid));
+    const tokens = (await getAllTokens(db)).filter(t => !seen.has(t.uid));
+    console.log(`already saw the announcement: ${seen.size} user(s); sending to ${tokens.length} token(s)`);
+    await sendToTokens(db, messaging, tokens, {
+        title: `🏆 ${champ.name} אלוף/ת השבוע!`,
+        body: 'אלוף השבוע הוכרע! היכנסו לראות'
+    });
+}
+await checkChampion().catch(e => console.log('champion check failed:', e.message));
 
 // מתריעים רק על הפותר הראשון בכל חלון, לא על כל מי שפותר
 const snap = await db.collection('scores')
