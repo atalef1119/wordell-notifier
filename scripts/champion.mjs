@@ -1,7 +1,7 @@
 // הכרעה מוקדמת של אלוף השבוע — אותו אלגוריתם כמו findClinchedChampion ב-public/app.js (ריפו נפרד) וכמו clinchStatus ב-whatsapp-claude-relay.
 // המוביל מפסיד (מינוס 2) בכל סבב שנשאר לו, וכל מתחרה (וגם שחקן חדש) מנצח בניסיון 1 בכל סבב ובכל בונוס שנשארו לו.
 // אם אף אחד לא יכול להדביק — האלוף הוכרע כבר עכשיו.
-import { compareStandings } from './lib.mjs';
+import { compareStandings, addRoundTablePoints, rtGameStillAhead } from './lib.mjs';
 
 const DAILY_LOSS_PENALTY_FROM_WINDOW = 41446;
 const isBonusDay = (d) => { const wd = ((d % 7) - 3 + 7) % 7; return wd === 2 || wd === 6; }; // שלישי ושבת
@@ -21,6 +21,7 @@ export async function currentWeekDetail(db, weekStart) {
     });
     const bsnap = await db.collection('bonusScores').where('bonusWindowId', '>=', weekStart / 2).where('bonusWindowId', '<', weekStart / 2 + 7).get();
     bsnap.docs.forEach(d => { const s = d.data(); const u = ensure(s); touch(u, s); u.points += s.points; u.bonusDaysPlayed.add(s.bonusWindowId); });
+    await addRoundTablePoints(db, weekStart, weekStart + 14, (g, a) => { ensure({ uid: a.uid, username: a.username }).points += a.points; });
     return Object.values(byUser).sort(compareStandings);
 }
 
@@ -36,11 +37,12 @@ export function clinchStatus(detail, weekStart, nowWindow, todayDay, daySeconds)
     let penalties = 0;
     for (let w = nowWindow + (leaderPlayed ? 1 : 0); w < weekStart + 14; w++) if (w >= DAILY_LOSS_PENALTY_FROM_WINDOW) penalties++;
     const leaderWorst = { ...leader, points: leader.points - 2 * penalties };
+    const rtBonus = rtGameStillAhead(weekStart, todayDay, daySeconds) ? 5 : 0; // השולחן העגול של השבוע עוד לפנינו
     const canOvertake = (c) => {
         const myWindowsLeft = windowsLeft - (c.windowsPlayed.has(nowWindow) ? 1 : 0);
         const myBonusLeft = bonusDaysLeft.filter(d => !c.bonusDaysPlayed.has(d)).length;
         const best = {
-            uid: c.uid, points: c.points + 6 * myWindowsLeft + 5 * myBonusLeft, wins: c.wins + myWindowsLeft,
+            uid: c.uid, points: c.points + 6 * myWindowsLeft + 5 * myBonusLeft + rtBonus, wins: c.wins + myWindowsLeft,
             attemptCounts: c.attemptCounts.map((n, i) => (i === 1 ? n + myWindowsLeft : n)),
         };
         return compareStandings(best, leaderWorst) < 0;

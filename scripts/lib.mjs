@@ -89,7 +89,50 @@ export async function computeWeekStandings(db, weekStart) {
         u.points += s.points;
     });
 
+    // וורדל שולחן עגול (רביעי 20:00): נקודות לפי המקום במשחק, נקודות בלבד (כמו בונוס). זהה ל-rtAwards ב-public/app.js
+    await addRoundTablePoints(db, weekStart - 14, weekStart, (g, a) => {
+        const u = ensure({ uid: a.uid, username: a.username });
+        u.points += a.points;
+    });
+
     return Object.values(byUser).sort(compareStandings);
+}
+
+// ---- וורדל שולחן עגול: נקודות לטבלה השבועית (זהה ל-rtAwards/rtGameDay/rtGameStillAhead ב-public/app.js) ----
+export const RT_FIRST_DAY = Math.floor(Date.UTC(2026, 9, 14) / 86400000); // רביעי 14/10/2026
+export function rtGameDay(gameId) {
+    const m = /^rt-(\d{4})-(\d{2})-(\d{2})$/.exec(gameId || '');
+    return m ? Math.floor(Date.UTC(+m[1], +m[2] - 1, +m[3]) / 86400000) : null;
+}
+export function rtAwards(g) {
+    const score = g.score || {}, names = g.names || {};
+    const ids = [...new Set([...(g.seats || []), ...Object.keys(score)])];
+    const sc = u => score[u] || { p: 0, s: 0, r: [0, 0, 0, 0, 0, 0, 0] };
+    ids.sort((a, b) => {
+        const A = sc(a), B = sc(b);
+        if (B.p !== A.p) return B.p - A.p;
+        if (B.s !== A.s) return B.s - A.s;
+        for (let n = 1; n <= 6; n++) if (((B.r || [])[n] || 0) !== ((A.r || [])[n] || 0)) return ((B.r || [])[n] || 0) - ((A.r || [])[n] || 0);
+        return a < b ? -1 : a > b ? 1 : 0;
+    });
+    return ids.map((u, i) => {
+        const solved = sc(u).s || 0;
+        return { uid: u, username: names[u] || 'שחקן', rank: i + 1, solved, points: !solved ? 0 : i === 0 ? 5 : i === 1 ? 4 : i === 2 ? 3 : 1 };
+    });
+}
+// מוסיף את נקודות השולחן העגול של המשחקים שהסתיימו בטווח [fromWindow, toWindow)
+export async function addRoundTablePoints(db, fromWindow, toWindow, add) {
+    const snap = await db.collection('rtGames').where('test', '==', false).get();
+    snap.docs.forEach(d => {
+        const g = d.data(), day = rtGameDay(d.id);
+        if (g.status !== 'ended' || day === null || day * 2 < fromWindow || day * 2 >= toWindow) return;
+        rtAwards(g).forEach(a => { if (a.points) add(g, a); });
+    });
+}
+export function rtGameStillAhead(weekStart, todayDay, daySeconds) {
+    const wed = weekStart / 2 + 3;
+    if (wed < RT_FIRST_DAY) return false;
+    return todayDay < wed || (todayDay === wed && daySeconds < 20 * 3600 + 30 * 60);
 }
 
 export async function getAllTokens(db) {
@@ -98,7 +141,7 @@ export async function getAllTokens(db) {
 }
 
 // שליחת התראה לרשימת טוקנים + ניקוי טוקנים מתים
-export async function sendToTokens(db, messaging, tokens, notification) {
+export async function sendToTokens(db, messaging, tokens, notification, link = SITE_URL) {
     if (!tokens.length) {
         console.log('no tokens to send to');
         return;
@@ -107,7 +150,7 @@ export async function sendToTokens(db, messaging, tokens, notification) {
         tokens: tokens.map(t => t.token),
         notification,
         webpush: {
-            fcmOptions: { link: SITE_URL },
+            fcmOptions: { link },
             notification: { icon: `${SITE_URL}/icon-192.png` }
         }
     });
