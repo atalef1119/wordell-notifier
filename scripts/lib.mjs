@@ -104,6 +104,10 @@ export function rtGameDay(gameId) {
     const m = /^rt-(\d{4})-(\d{2})-(\d{2})$/.exec(gameId || '');
     return m ? Math.floor(Date.UTC(+m[1], +m[2] - 1, +m[3]) / 86400000) : null;
 }
+// משחק שנגמר — או שכולם עזבו באמצע והוא "נתקע" (עברו 15 דקות מסוף הזמן): נספר לפי הניקוד שהיה
+export function rtGameFinished(g) {
+    return g.status === 'ended' || (g.status === 'playing' && g.endAt && Date.now() > g.endAt + 15 * 60 * 1000);
+}
 export function rtAwards(g) {
     const score = g.score || {}, names = g.names || {};
     const ids = [...new Set([...(g.seats || []), ...Object.keys(score)])];
@@ -125,7 +129,7 @@ export async function addRoundTablePoints(db, fromWindow, toWindow, add) {
     const snap = await db.collection('rtGames').where('test', '==', false).get();
     snap.docs.forEach(d => {
         const g = d.data(), day = rtGameDay(d.id);
-        if (g.status !== 'ended' || day === null || day * 2 < fromWindow || day * 2 >= toWindow) return;
+        if (!rtGameFinished(g) || day === null || day * 2 < fromWindow || day * 2 >= toWindow) return;
         rtAwards(g).forEach(a => { if (a.points) add(g, a); });
     });
 }
