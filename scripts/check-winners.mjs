@@ -59,7 +59,7 @@ async function roundTableReminder() {
     const tokens = await getAllTokens(db);
     console.log(`round-table reminder to ${tokens.length} token(s)`);
     await sendToTokens(db, messaging, tokens, {
-        title: '🎲 וורדל שולחן עגול בעוד חצי שעה!',
+        title: '👥 וורדל שולחן עגול בעוד חצי שעה!',
         body: 'היום ב-20:00. חדר ההמתנה נפתח ב-19:55, בואו לשבת ליד השולחן'
     }, `${SITE_URL}/roundtable.html`);
 }
