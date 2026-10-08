@@ -55,7 +55,7 @@ async function roundTableReminder() {
     if (daySeconds < 19 * 3600 + 20 * 60 || daySeconds >= 19 * 3600 + 58 * 60) return;
     if (process.env.DRY_RUN === '1') { console.log('DRY RUN — would send round-table reminder'); return; }
     try { await db.collection('notified').doc(`rt-reminder-${day}`).create({ at: new Date() }); }
-    catch (e) { return; } // כבר נשלח
+    catch (e) { if (e.code !== 6) console.log('round-table reminder marker error:', e.message); return; } // 6 = ALREADY_EXISTS (כבר נשלח); כל שגיאה אחרת נרשמת, והריצה הבאה (עוד 10 דק') מנסה שוב
     const tokens = await getAllTokens(db);
     console.log(`round-table reminder to ${tokens.length} token(s)`);
     await sendToTokens(db, messaging, tokens, {
