@@ -109,20 +109,25 @@ export function rtGameFinished(g) {
     return g.status === 'ended' || (g.status === 'playing' && g.endAt && Date.now() > g.endAt + 15 * 60 * 1000);
 }
 export function rtAwards(g) {
-    const score = g.score || {}, names = g.names || {};
+    // זהה ל-ranking ב-roundtable.js: נקודות המשחק -> מילים שנפתרו -> ירוקות -> הדירוג אחרי המילה הקודמת -> uid.
+    // נקודות לטבלה השבועית: חמשת הראשונים בטבלת המשחק (ובתנאי שצברו נקודות) מקבלים 5/4/3/2/1
+    const score = g.score || {}, names = g.names || {}, prev = g.prevRank || {};
     const ids = [...new Set([...(g.seats || []), ...Object.keys(score)])];
-    const sc = u => score[u] || { p: 0, s: 0, r: [0, 0, 0, 0, 0, 0, 0] };
+    const sc = u => score[u] || { p: 0, s: 0, gr: 0 };
     ids.sort((a, b) => {
         const A = sc(a), B = sc(b);
         if (B.p !== A.p) return B.p - A.p;
         if (B.s !== A.s) return B.s - A.s;
-        for (let n = 1; n <= 6; n++) if (((B.r || [])[n] || 0) !== ((A.r || [])[n] || 0)) return ((B.r || [])[n] || 0) - ((A.r || [])[n] || 0);
+        if ((B.gr || 0) !== (A.gr || 0)) return (B.gr || 0) - (A.gr || 0);
+        const pa = prev[a] !== undefined ? prev[a] : 999, pb = prev[b] !== undefined ? prev[b] : 999;
+        if (pa !== pb) return pa - pb;
         return a < b ? -1 : a > b ? 1 : 0;
     });
-    return ids.map((u, i) => {
-        const solved = sc(u).s || 0;
-        return { uid: u, username: names[u] || 'שחקן', rank: i + 1, solved, points: !solved ? 0 : i === 0 ? 5 : i === 1 ? 4 : i === 2 ? 3 : 1 };
-    });
+    const W = [5, 4, 3, 2, 1];
+    return ids.map((u, i) => ({
+        uid: u, username: names[u] || 'שחקן', rank: i + 1, solved: sc(u).s || 0, game_points: sc(u).p || 0,
+        points: i < 5 && (sc(u).p || 0) > 0 ? W[i] : 0
+    }));
 }
 // מוסיף את נקודות השולחן העגול של המשחקים שהסתיימו בטווח [fromWindow, toWindow)
 export async function addRoundTablePoints(db, fromWindow, toWindow, add) {
