@@ -2,6 +2,7 @@
 // המוביל מפסיד (מינוס 2) בכל סבב שנשאר לו, וכל מתחרה (וגם שחקן חדש) מנצח בניסיון 1 בכל סבב ובכל בונוס שנשארו לו.
 // אם אף אחד לא יכול להדביק — האלוף הוכרע כבר עכשיו.
 import { compareStandings, addRoundTablePoints, rtGameStillAhead } from './lib.mjs';
+import { evalClinch, waiverOptions } from './clinch-core.mjs';
 
 const DAILY_LOSS_PENALTY_FROM_WINDOW = 41446;
 const isBonusDay = (d) => { const wd = ((d % 7) - 3 + 7) % 7; return wd === 2 || wd === 6; }; // שלישי ושבת
@@ -25,29 +26,25 @@ export async function currentWeekDetail(db, weekStart) {
     return Object.values(byUser).sort(compareStandings);
 }
 
-export function clinchStatus(detail, weekStart, nowWindow, todayDay, daySeconds) {
+// הלוגיקה ב-clinch-core.mjs (אותו קובץ כמו באתר ובבוט). waivers: { uid: {daily, bonus} } — ויתור של המוביל (championWaivers)
+export function clinchCtxOf(detail, weekStart, nowWindow, todayDay, daySeconds) {
+    return {
+        standings: detail.map(u => ({ uid: u.uid, name: u.name, points: u.points, wins: u.wins, attemptCounts: u.attemptCounts, windowsPlayed: u.windowsPlayed, bonusDaysPlayed: u.bonusDaysPlayed })),
+        weekStart, nowWindow, todayDay, daySeconds,
+        rtBonus: rtGameStillAhead(weekStart, todayDay, daySeconds) ? 5 : 0,
+        penaltyFrom: DAILY_LOSS_PENALTY_FROM_WINDOW,
+    };
+}
+export function clinchStatus(detail, weekStart, nowWindow, todayDay, daySeconds, waivers = {}) {
     const leader = detail[0];
     if (!leader || leader.points <= 0) return { decided: false };
-    const windowsLeft = weekStart + 14 - nowWindow;
-    const bonusDaysLeft = [];
-    for (let d = weekStart / 2; d < weekStart / 2 + 7; d++) {
-        if (isBonusDay(d) && (d > todayDay || (d === todayDay && daySeconds < 23 * 3600))) bonusDaysLeft.push(d);
-    }
-    const leaderPlayed = leader.windowsPlayed.has(nowWindow);
-    let penalties = 0;
-    for (let w = nowWindow + (leaderPlayed ? 1 : 0); w < weekStart + 14; w++) if (w >= DAILY_LOSS_PENALTY_FROM_WINDOW) penalties++;
-    const leaderWorst = { ...leader, points: leader.points - 2 * penalties };
-    const rtBonus = rtGameStillAhead(weekStart, todayDay, daySeconds) ? 5 : 0; // השולחן העגול של השבוע עוד לפנינו
-    const canOvertake = (c) => {
-        const myWindowsLeft = windowsLeft - (c.windowsPlayed.has(nowWindow) ? 1 : 0);
-        const myBonusLeft = bonusDaysLeft.filter(d => !c.bonusDaysPlayed.has(d)).length;
-        const best = {
-            uid: c.uid, points: c.points + 6 * myWindowsLeft + 5 * myBonusLeft + rtBonus, wins: c.wins + myWindowsLeft,
-            attemptCounts: c.attemptCounts.map((n, i) => (i === 1 ? n + myWindowsLeft : n)),
-        };
-        return compareStandings(best, leaderWorst) < 0;
-    };
-    const unseen = { uid: '', points: 0, wins: 0, attemptCounts: [0, 0, 0, 0, 0, 0, 0], windowsPlayed: new Set(), bonusDaysPlayed: new Set() };
-    const decided = !canOvertake(unseen) && !detail.slice(1).some(canOvertake);
-    return { decided, champion: leader };
+    const ctx = clinchCtxOf(detail, weekStart, nowWindow, todayDay, daySeconds);
+    const wv = waivers[leader.uid] || null;
+    const r = evalClinch(ctx, wv);
+    const options = r.ok ? [] : waiverOptions(ctx, wv).options;
+    return { decided: r.ok, champion: leader, options };
+}
+export async function loadWaivers(db, weekStart) {
+    const snap = await db.collection('championWaivers').where('weekStart', '==', weekStart).get();
+    return Object.fromEntries(snap.docs.map(d => [d.data().uid, { daily: d.data().daily === true, bonus: d.data().bonus === true }]));
 }

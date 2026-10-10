@@ -4,12 +4,14 @@ import { getFirestore } from 'firebase-admin/firestore';
 import { getMessaging } from 'firebase-admin/messaging';
 
 export const SITE_URL = 'https://wordell-haverim-2026.web.app';
+// איזה מסד Firestore פעיל: '(default)' = ארה"ב (nam5), 'wordell-il' = תל אביב. מחליפים כאן שורה אחת בזמן ההעברה (ואז commit + push)
+export const WORDELL_DB_ID = '(default)';
 
 export function initAdmin() {
     // מנקה BOM/רווחים שעלולים להידבק ל-secret בהעברה
     const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT.replace(/^﻿/, '').trim());
-    initializeApp({ credential: cert(sa) });
-    return { db: getFirestore(), messaging: getMessaging() };
+    const app = initializeApp({ credential: cert(sa) });
+    return { db: getFirestore(app, WORDELL_DB_ID), messaging: getMessaging() };
 }
 
 // אותו חישוב חלון-זמן כמו באתר: מילה חדשה ב-10:00 וב-21:00 שעון ישראל (עד 02/10/2026 היה 22:00)

@@ -1,7 +1,7 @@
 // בודק אם יש פותרים חדשים במילה הנוכחית ושולח פוש לכל השאר
 import { FieldValue } from 'firebase-admin/firestore';
 import { initAdmin, getJerusalemWindow, getAllTokens, sendToTokens, getWeekStartWindowId, RT_FIRST_DAY, SITE_URL } from './lib.mjs';
-import { currentWeekDetail, clinchStatus } from './champion.mjs';
+import { currentWeekDetail, clinchStatus, loadWaivers } from './champion.mjs';
 
 const { db, messaging } = initAdmin();
 
@@ -12,6 +12,23 @@ const windowId = process.env.WINDOW_OVERRIDE
 
 // ── הכרעה מוקדמת של אלוף השבוע: פוש ברגע ההכרעה, רק למי שלא ראה את הכרזת האלוף באתר (championSeen) ──
 // רצה לפני כל היציאות המוקדמות. סימון notified/champion-<weekStart> נוצר אטומית (create) — פוש אחד לשבוע, ושבוע שסומן "מדולג" לא יקבל פוש.
+// פוש רק למוביל: אפשר להכריז עליו כאלוף אם יוותר (באתר מופיע לו חלון). פוש אחד לכל קבוצת אפשרויות (סימון notified/waiver-offer-...).
+// נשלח רק מיום שישי 10:00 (4 חלונות לסוף), כמו שהחלון באתר מופיע רק אז.
+async function offerWaiverPush(st, weekStart, nowWindow) {
+    if (!st.options || !st.options.length || weekStart + 14 - nowWindow > 4) return;
+    const leader = st.champion;
+    const key = `waiver-offer-${weekStart}-${st.options.join('+')}`;
+    if (process.env.DRY_RUN === '1') { console.log(`DRY RUN — would push ${leader.name} (waiver options: ${st.options.join(',')})`); return; }
+    try { await db.collection('notified').doc(key).create({ uid: leader.uid, at: new Date() }); }
+    catch (e) { if (e.code !== 6) console.log('waiver offer marker error:', e.message); return; }
+    const tokens = (await getAllTokens(db)).filter(t => t.uid === leader.uid);
+    console.log(`waiver offer push to ${leader.name}: ${tokens.length} token(s), options ${st.options.join(',')}`);
+    await sendToTokens(db, messaging, tokens, {
+        title: '👑 אפשר להכריז עליך כאלוף/ת השבוע!',
+        body: 'היכנס/י לאתר ואשר/י ויתור על בונוס או על מילה, ונכריז עליך מיד'
+    });
+}
+
 async function checkChampion() {
     const { windowId: nowWindow, day, daySeconds } = getJerusalemWindow();
     const weekStart = getWeekStartWindowId(process.env.WINDOW_OVERRIDE ? windowId : nowWindow);
@@ -20,17 +37,23 @@ async function checkChampion() {
     if ((await marker.get()).exists) return;
     // מדלגים על חישוב מלא אם לא נוסף שום משחק/בונוס מאז הבדיקה הקודמת (ספירה זולה)
     const stateRef = db.collection('notified').doc(`champion-state-${weekStart}`);
-    const [sc, bc] = await Promise.all([
+    const [sc, bc, wc] = await Promise.all([
         db.collection('scores').where('windowId', '>=', weekStart).where('windowId', '<', weekStart + 14).count().get(),
         db.collection('bonusScores').where('bonusWindowId', '>=', weekStart / 2).where('bonusWindowId', '<', weekStart / 2 + 7).count().get(),
+        db.collection('championWaivers').where('weekStart', '==', weekStart).count().get(),
     ]);
-    const sig = `${sc.data().count}/${bc.data().count}/${nowWindow}/${daySeconds >= 23 * 3600}`;
+    const sig = `${sc.data().count}/${bc.data().count}/${wc.data().count}/${nowWindow}/${daySeconds >= 23 * 3600}`;
     const prev = await stateRef.get();
     if (prev.exists && prev.data().sig === sig) return;
     const detail = await currentWeekDetail(db, weekStart);
-    const st = clinchStatus(detail, weekStart, nowWindow, day, daySeconds);
+    const waivers = await loadWaivers(db, weekStart);
+    const st = clinchStatus(detail, weekStart, nowWindow, day, daySeconds, waivers);
     await stateRef.set({ sig, at: new Date() });
-    if (!st.decided) { console.log('champion not decided yet'); return; }
+    if (!st.decided) {
+        console.log('champion not decided yet');
+        await offerWaiverPush(st, weekStart, nowWindow);
+        return;
+    }
     const champ = st.champion;
     console.log(`champion decided early: ${champ.name} (${champ.points} pts)`);
     if (process.env.DRY_RUN === '1') { console.log('DRY RUN — no marker, no push'); return; }
