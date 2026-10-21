@@ -70,12 +70,12 @@ async function checkChampion() {
 }
 await checkChampion().catch(e => console.log('champion check failed:', e.message));
 
-// ── וורדל שולחן עגול: פוש תזכורת חצי שעה לפני (רביעי 19:30). רץ כל 10 דק', אז חלון של 19:20–19:58 (ה-cron של GitHub מתעכב לפעמים);
+// ── וורדל שולחן עגול: פוש תזכורת חצי שעה לפני (המשחק ב-20:30, הפוש ב-20:00). רץ כל 10 דק', אז חלון של 20:00–20:18 (ה-cron של GitHub מתעכב לפעמים);
 // סימון notified/rt-reminder-<day> נוצר אטומית — פוש אחד בלבד ──
 async function roundTableReminder() {
     const { day, daySeconds } = getJerusalemWindow();
     if (day % 7 !== 6 || day < RT_FIRST_DAY) return;           // רק ביום רביעי, מהמשחק הראשון
-    if (daySeconds < 19 * 3600 + 20 * 60 || daySeconds >= 19 * 3600 + 58 * 60) return;
+    if (daySeconds < 20 * 3600 || daySeconds >= 20 * 3600 + 18 * 60) return;
     if (process.env.DRY_RUN === '1') { console.log('DRY RUN — would send round-table reminder'); return; }
     try { await db.collection('notified').doc(`rt-reminder-${day}`).create({ at: new Date() }); }
     catch (e) { if (e.code !== 6) console.log('round-table reminder marker error:', e.message); return; } // 6 = ALREADY_EXISTS (כבר נשלח); כל שגיאה אחרת נרשמת, והריצה הבאה (עוד 10 דק') מנסה שוב
@@ -83,7 +83,7 @@ async function roundTableReminder() {
     console.log(`round-table reminder to ${tokens.length} token(s)`);
     await sendToTokens(db, messaging, tokens, {
         title: '👥 וורדל שולחן עגול בעוד חצי שעה!',
-        body: 'היום ב-20:00. חדר ההמתנה נפתח ב-19:55, בואו לשבת ליד השולחן'
+        body: 'היום ב-20:30. חדר ההמתנה נפתח ב-20:25, בואו לשבת ליד השולחן'
     }, `${SITE_URL}/roundtable.html`);
 }
 await roundTableReminder().catch(e => console.log('round-table reminder failed:', e.message));

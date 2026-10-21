@@ -91,7 +91,7 @@ export async function computeWeekStandings(db, weekStart) {
         u.points += s.points;
     });
 
-    // וורדל שולחן עגול (רביעי 20:00): נקודות לפי המקום במשחק, נקודות בלבד (כמו בונוס). זהה ל-rtAwards ב-public/app.js
+    // וורדל שולחן עגול (רביעי 20:30): נקודות לפי המקום במשחק, נקודות בלבד (כמו בונוס). זהה ל-rtAwards ב-public/app.js
     await addRoundTablePoints(db, weekStart - 14, weekStart, (g, a) => {
         const u = ensure({ uid: a.uid, username: a.username });
         u.points += a.points;
@@ -143,7 +143,7 @@ export async function addRoundTablePoints(db, fromWindow, toWindow, add) {
 export function rtGameStillAhead(weekStart, todayDay, daySeconds) {
     const wed = weekStart / 2 + 3;
     if (wed < RT_FIRST_DAY) return false;
-    return todayDay < wed || (todayDay === wed && daySeconds < 20 * 3600 + 30 * 60);
+    return todayDay < wed || (todayDay === wed && daySeconds < 21 * 3600);
 }
 
 export async function getAllTokens(db) {
