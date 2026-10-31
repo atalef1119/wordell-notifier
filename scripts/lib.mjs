@@ -5,7 +5,7 @@ import { getMessaging } from 'firebase-admin/messaging';
 
 export const SITE_URL = 'https://wordell-haverim-2026.web.app';
 // איזה מסד Firestore פעיל: '(default)' = ארה"ב (nam5), 'wordell-il' = תל אביב. מחליפים כאן שורה אחת בזמן ההעברה (ואז commit + push)
-export const WORDELL_DB_ID = 'wordell-il';
+export const WORDELL_DB_ID = '(default)'; // 31/10/2026: (default) החדש בתל אביב
 
 export function initAdmin() {
     // מנקה BOM/רווחים שעלולים להידבק ל-secret בהעברה
