@@ -96,6 +96,10 @@ export async function computeWeekStandings(db, weekStart) {
         const u = ensure({ uid: a.uid, username: a.username });
         u.points += a.points;
     });
+    // בול פגיעה (שישי 13:00-20:00): 5/4/3/2/1 לחמשת הראשונים, נקודות בלבד. זהה ל-bullAwards ב-public/app.js
+    await addBullPoints(db, weekStart - 14, weekStart, (a) => {
+        ensure({ uid: a.uid, username: a.username }).points += a.points;
+    });
 
     return Object.values(byUser).sort(compareStandings);
 }
@@ -144,6 +148,38 @@ export function rtGameStillAhead(weekStart, todayDay, daySeconds) {
     const wed = weekStart / 2 + 3;
     if (wed < RT_FIRST_DAY) return false;
     return todayDay < wed || (todayDay === wed && daySeconds < 21 * 3600);
+}
+
+// ---- בול פגיעה, המשחק האמיתי (שישי 13:00-20:00, מ-13/11/2026): נקודות לטבלה השבועית ----
+// זהה ל-bullRank ב-wordell/functions/bull.js ול-bullAwards ב-public/app.js. לשמור מסונכרן.
+// דירוג: פחות ניחושים -> פחות שניות -> uid. חמשת הראשונים: 5/4/3/2/1. משחק נספר רק אחרי 20:00 של אותו יום (שעון ישראל)
+export const BULL_FIRST_DAY = Math.floor(Date.UTC(2026, 10, 13) / 86400000);
+const BULL_CLOSE_SEC = 20 * 3600;
+const JLM_BULL = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Jerusalem', hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+function jlmDayNow(ms = Date.now()) {
+    const p = Object.fromEntries(JLM_BULL.formatToParts(new Date(ms)).map(x => [x.type, x.value]));
+    return { day: Math.floor(Date.UTC(+p.year, +p.month - 1, +p.day) / 86400000), daySeconds: (+p.hour % 24) * 3600 + (+p.minute) * 60 + (+p.second) };
+}
+export function bullAwards(rows, nowMs = Date.now()) {
+    const { day: today, daySeconds } = jlmDayNow(nowMs);
+    const byDay = {};
+    rows.forEach(r => { if (r.day >= BULL_FIRST_DAY && (r.day < today || (r.day === today && daySeconds >= BULL_CLOSE_SEC))) (byDay[r.day] ||= []).push(r); });
+    const out = [];
+    Object.values(byDay).forEach(list => {
+        list.sort((a, b) => (a.guesses - b.guesses) || (a.seconds - b.seconds) || (a.uid < b.uid ? -1 : a.uid > b.uid ? 1 : 0));
+        list.forEach((r, i) => out.push({ uid: r.uid, username: r.username, day: r.day, guesses: r.guesses, rank: i + 1, points: i < 5 ? [5, 4, 3, 2, 1][i] : 0 }));
+    });
+    return out;
+}
+// מוסיף את נקודות בול פגיעה של המשחקים שנגמרו בטווח [fromWindow, toWindow)
+export async function addBullPoints(db, fromWindow, toWindow, add) {
+    const snap = await db.collection('bullResults').where('day', '>=', fromWindow / 2).where('day', '<', toWindow / 2).get();
+    bullAwards(snap.docs.map(d => d.data())).forEach(a => { if (a.points) add(a); });
+}
+export function bullGameStillAhead(weekStart, todayDay, daySeconds) {
+    const fri = weekStart / 2 + 5;
+    if (fri < BULL_FIRST_DAY) return false;
+    return todayDay < fri || (todayDay === fri && daySeconds < BULL_CLOSE_SEC);
 }
 
 export async function getAllTokens(db) {

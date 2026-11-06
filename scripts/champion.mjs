@@ -1,7 +1,7 @@
 // הכרעה מוקדמת של אלוף השבוע — אותו אלגוריתם כמו findClinchedChampion ב-public/app.js (ריפו נפרד) וכמו clinchStatus ב-whatsapp-claude-relay.
 // המוביל מפסיד (מינוס 2) בכל סבב שנשאר לו, וכל מתחרה (וגם שחקן חדש) מנצח בניסיון 1 בכל סבב ובכל בונוס שנשארו לו.
 // אם אף אחד לא יכול להדביק — האלוף הוכרע כבר עכשיו.
-import { compareStandings, addRoundTablePoints, rtGameStillAhead } from './lib.mjs';
+import { compareStandings, addRoundTablePoints, rtGameStillAhead, addBullPoints, bullGameStillAhead } from './lib.mjs';
 import { evalClinch, waiverOptions } from './clinch-core.mjs';
 
 const DAILY_LOSS_PENALTY_FROM_WINDOW = 41446;
@@ -23,6 +23,7 @@ export async function currentWeekDetail(db, weekStart) {
     const bsnap = await db.collection('bonusScores').where('bonusWindowId', '>=', weekStart / 2).where('bonusWindowId', '<', weekStart / 2 + 7).get();
     bsnap.docs.forEach(d => { const s = d.data(); const u = ensure(s); touch(u, s); u.points += s.points; u.bonusDaysPlayed.add(s.bonusWindowId); });
     await addRoundTablePoints(db, weekStart, weekStart + 14, (g, a) => { ensure({ uid: a.uid, username: a.username }).points += a.points; });
+    await addBullPoints(db, weekStart, weekStart + 14, (a) => { ensure({ uid: a.uid, username: a.username }).points += a.points; });
     return Object.values(byUser).sort(compareStandings);
 }
 
@@ -31,7 +32,8 @@ export function clinchCtxOf(detail, weekStart, nowWindow, todayDay, daySeconds) 
     return {
         standings: detail.map(u => ({ uid: u.uid, name: u.name, points: u.points, wins: u.wins, attemptCounts: u.attemptCounts, windowsPlayed: u.windowsPlayed, bonusDaysPlayed: u.bonusDaysPlayed })),
         weekStart, nowWindow, todayDay, daySeconds,
-        rtBonus: rtGameStillAhead(weekStart, todayDay, daySeconds) ? 5 : 0,
+        // נקודות שמתחרה עוד יכול לקבל השבוע: שולחן עגול (עד 5) ובול פגיעה בשישי (עד 5)
+        rtBonus: (rtGameStillAhead(weekStart, todayDay, daySeconds) ? 5 : 0) + (bullGameStillAhead(weekStart, todayDay, daySeconds) ? 5 : 0),
         penaltyFrom: DAILY_LOSS_PENALTY_FROM_WINDOW,
     };
 }
